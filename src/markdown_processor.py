@@ -1,7 +1,16 @@
-from re import findall, search
+from re import findall, search, MULTILINE, DOTALL
+from enum import Enum
 from textnode import TextNode, TextType
-from constants import MARKDOWN_IMAGE_RE, MARKDOWN_LINK_RE
+from constants import MARKDOWN_IMAGE_RE, MARKDOWN_LINK_RE, MARKDOWN_HEADING_RE, MARKDOWN_CODEBLOCK_START_RE, MARKDOWN_CODEBLOCK_END_RE
 
+
+class BlockType(Enum):
+    paragraph = "p"
+    heading = "h"
+    code = "code"
+    quote = "blockquote"
+    unordered_list = "ul"
+    ordered_list = "ol"
 
 
 def split_nodes_delimiter(old_nodes, delimiter, text_type) -> list[TextNode]:
@@ -96,10 +105,60 @@ def text_to_textnodes(text:str) -> list[TextNode]:
     return list_with_code
 
 
+def markdown_to_blocks(text:str) -> list[str]:
+    blocks = text.split("\n\n")
+    return [x.strip() for x in blocks if x]
+
+
+def md_is_heading(md:str) -> bool:
+    return True if search(MARKDOWN_HEADING_RE, md) else False
+
+
+def md_is_code(md:str) -> bool:
+    if not md: return False
+    md_lines = md.split("\n")
+    code_start = search(MARKDOWN_CODEBLOCK_START_RE, md_lines[0])
+    code_end = search(MARKDOWN_CODEBLOCK_END_RE, md_lines[-1])
+    return code_start and code_end
+
+
+def md_is_quote(md:str) -> bool:
+    return False
+
+
+def md_is_ul(md:str) -> bool:
+    return False
+
+
+def md_is_ol(md:str) -> bool:
+    return False
+
+
+def block_to_block_type(md:str) -> BlockType:
+    if md_is_heading(md): return BlockType.heading
+    elif md_is_code(md): return BlockType.code
+    elif md_is_quote(md): return BlockType.quote
+    elif md_is_ul(md): return BlockType.unordered_list
+    elif md_is_ol(md): return BlockType.ordered_list
+    else: return BlockType.paragraph
+
+
 def main():
-    text = "This is **text** with an _italic_ word and a `code block` and an ![obi wan image](https://i.imgur.com/fJRm4Vk.jpeg) and a [link](https://boot.dev)"
-    print(f"Input: \n\t{text}")
-    print(text_to_textnodes(text))
+    input_string = """# This is a heading
+
+This is a paragraph of text. It has some **bold** and _italic_ words inside of it.
+
+```Code Block
+Mode code```
+
+- This is the first list item in a list block
+- This is a list item
+- This is another list item
+"""
+    blocks = markdown_to_blocks(input_string)
+    print(blocks)
+    for block in blocks:
+        print(f"{block}\n\tis a(n) {block_to_block_type(block)}")
 
 if __name__ == "__main__":
     main()

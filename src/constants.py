@@ -1,2 +1,5 @@
 MARKDOWN_IMAGE_RE = r"\!\[(.*?)\]\((.*?)\)"
 MARKDOWN_LINK_RE = r"(?<!\!)\[(.*?)\]\((.*?)\)"
+MARKDOWN_HEADING_RE = r"^#{1,6}\s.*$"
+MARKDOWN_CODEBLOCK_START_RE = r"^`{3}"
+MARKDOWN_CODEBLOCK_END_RE = r"`{3}$"
