@@ -1,7 +1,7 @@
 import unittest
 
 from textnode import TextNode, TextType
-from markdown_processor import split_nodes_delimiter, extract_markdown_images, extract_markdown_links, split_nodes_image, split_nodes_link
+from markdown_processor import split_nodes_delimiter, extract_markdown_images, extract_markdown_links, split_nodes_image, split_nodes_link, text_to_textnodes
 
 
 class TestTextNode(unittest.TestCase):
@@ -247,6 +247,56 @@ class TestSplitNodesOnImage(unittest.TestCase):
             ],
             new_nodes,
         )
+
+
+class TestTextToTextNodes(unittest.TestCase):
+    def test_from_lesson(self):
+        test_text = "This is **text** with an _italic_ word and a `code block` and an ![obi wan image](https://i.imgur.com/fJRm4Vk.jpeg) and a [link](https://boot.dev)"
+        test_nodes = text_to_textnodes(test_text)
+        correct_nodes = [
+            TextNode("This is ", TextType.TEXT),
+            TextNode("text", TextType.BOLD),
+            TextNode(" with an ", TextType.TEXT),
+            TextNode("italic", TextType.ITALIC),
+            TextNode(" word and a ", TextType.TEXT),
+            TextNode("code block", TextType.CODE),
+            TextNode(" and an ", TextType.TEXT),
+            TextNode("obi wan image", TextType.IMAGE, "https://i.imgur.com/fJRm4Vk.jpeg"),
+            TextNode(" and a ", TextType.TEXT),
+            TextNode("link", TextType.LINK, "https://boot.dev"),
+        ]
+        self.assertListEqual(test_nodes, correct_nodes)
+
+    def test2(self):
+        test_text = "![obi wan image](https://i.imgur.com/fJRm4Vk.jpeg)[link](https://boot.dev)Text at the end."
+        test_nodes = text_to_textnodes(test_text)
+        correct_nodes = [
+            TextNode("obi wan image", TextType.IMAGE, "https://i.imgur.com/fJRm4Vk.jpeg"),
+            TextNode("link", TextType.LINK, "https://boot.dev"),
+            TextNode("Text at the end.",TextType.TEXT)
+        ]
+        self.assertListEqual(test_nodes, correct_nodes)
+
+    def test3(self):
+        test_text = "[obi wan link](https://i.imgur.com/fJRm4Vk.jpeg)[link](https://boot.dev)Text at the end."
+        test_nodes = text_to_textnodes(test_text)
+        correct_nodes = [
+            TextNode("obi wan link", TextType.LINK, "https://i.imgur.com/fJRm4Vk.jpeg"),
+            TextNode("link", TextType.LINK, "https://boot.dev"),
+            TextNode("Text at the end.",TextType.TEXT)
+        ]
+        self.assertListEqual(test_nodes, correct_nodes)
+
+    def test4(self):
+        test_text = "BEGINNING[obi wan link](https://i.imgur.com/fJRm4Vk.jpeg)[link](https://boot.dev)END"
+        test_nodes = text_to_textnodes(test_text)
+        correct_nodes = [
+            TextNode("BEGINNING",TextType.TEXT),
+            TextNode("obi wan link", TextType.LINK, "https://i.imgur.com/fJRm4Vk.jpeg"),
+            TextNode("link", TextType.LINK, "https://boot.dev"),
+            TextNode("END",TextType.TEXT)
+        ]
+        self.assertListEqual(test_nodes, correct_nodes)
 
 
 
