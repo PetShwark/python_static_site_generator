@@ -1,7 +1,8 @@
 from re import findall, search, MULTILINE, DOTALL
 from enum import Enum
 from textnode import TextNode, TextType
-from constants import MARKDOWN_IMAGE_RE, MARKDOWN_LINK_RE, MARKDOWN_HEADING_RE, MARKDOWN_CODEBLOCK_START_RE, MARKDOWN_CODEBLOCK_END_RE
+from htmlnode import HTMLNode, LeafNode, ParentNode, text_node_to_html_node
+from constants import MARKDOWN_IMAGE_RE, MARKDOWN_LINK_RE, MARKDOWN_HEADING_RE, MARKDOWN_CODEBLOCK_START_RE, MARKDOWN_CODEBLOCK_END_RE, MARKDOWN_QUOTE_RE, MARKDOWN_UL_RE, MARKDOWN_OL_RE
 
 
 class BlockType(Enum):
@@ -111,27 +112,55 @@ def markdown_to_blocks(text:str) -> list[str]:
 
 
 def md_is_heading(md:str) -> bool:
+    if not md: return False
     return True if search(MARKDOWN_HEADING_RE, md) else False
 
 
 def md_is_code(md:str) -> bool:
     if not md: return False
     md_lines = md.split("\n")
-    code_start = search(MARKDOWN_CODEBLOCK_START_RE, md_lines[0])
-    code_end = search(MARKDOWN_CODEBLOCK_END_RE, md_lines[-1])
+    code_start = search(MARKDOWN_CODEBLOCK_START_RE, md_lines[0]) # Check for beginning ticks on first line
+    code_end = search(MARKDOWN_CODEBLOCK_END_RE, md_lines[-1]) # Check for ending ticks on last line
     return code_start and code_end
 
 
 def md_is_quote(md:str) -> bool:
-    return False
+    if not md: return False
+    md_lines = md.split("\n")
+    result = True
+    for md_line in md_lines:
+        if not search(MARKDOWN_QUOTE_RE, md_line):
+            result = False
+            break
+    return result
 
 
 def md_is_ul(md:str) -> bool:
-    return False
+    if not md: return False
+    md_lines = md.split("\n")
+    result = True
+    for md_line in md_lines:
+        if not search(MARKDOWN_UL_RE, md_line):
+            result = False
+            break
+    return result
 
 
 def md_is_ol(md:str) -> bool:
-    return False
+    if not md: return False
+    md_lines = md.split("\n")
+    result = True
+    for idx, md_line in enumerate(md_lines):
+        a_match = search(MARKDOWN_OL_RE, md_line)
+        if not a_match:
+            result = False
+            break
+        else:
+            if not int(a_match.group(1)) == idx+1:
+                result = False
+                break
+    return result
+
 
 
 def block_to_block_type(md:str) -> BlockType:
@@ -143,22 +172,107 @@ def block_to_block_type(md:str) -> BlockType:
     else: return BlockType.paragraph
 
 
+def heading_block_to_parent_node(md:str) -> ParentNode:
+    heading_match = search(MARKDOWN_HEADING_RE, md)
+    if heading_match: # should always be true here because of block type check
+        heading_level = len(heading_match.group(1)) # (#{1,6}) in regex
+        heading_text = heading_match.group(2).strip() # (.*) in regex
+        text_nodes = text_to_textnodes(heading_text)
+        html_children = [text_node_to_html_node(tn) for tn in text_nodes]
+        return ParentNode(f'h{heading_level}', html_children)
+    else:
+        raise Exception("Invalid heading block")
+    
+
+def paragraph_block_to_parent_node(md:str) -> ParentNode:
+    md = md.replace("\n", " ")
+    text_nodes = text_to_textnodes(md)
+    html_children = [text_node_to_html_node(tn) for tn in text_nodes]
+    return ParentNode('p', html_children)
+
+
+def quote_block_to_parent_node(md:str) -> ParentNode:
+    # Remove leading "> " from each line
+    quote_lines = md.split("\n")
+    cleaned_lines = []
+    for line in quote_lines:
+        quote_match = search(MARKDOWN_QUOTE_RE, line)
+        if quote_match:
+            cleaned_lines.append(quote_match.group(2).strip())
+    quote_text = "\n".join(cleaned_lines)
+    text_nodes = text_to_textnodes(quote_text)
+    html_children = [text_node_to_html_node(tn) for tn in text_nodes]
+    return ParentNode('blockquote', html_children)
+
+
+def unordered_list_block_to_parent_node(md:str) -> ParentNode:
+    # Remove leading "- " from each line
+    ul_lines = md.split("\n")
+    li_nodes = []
+    for line in ul_lines:
+        ul_match = search(MARKDOWN_UL_RE, line)
+        if ul_match:
+            li_text = ul_match.group(2).strip()
+            text_nodes = text_to_textnodes(li_text)
+            html_children = [text_node_to_html_node(tn) for tn in text_nodes]
+            li_nodes.append(ParentNode('li', html_children))
+    return ParentNode('ul', li_nodes)
+
+
+def ordered_list_block_to_parent_node(md:str) -> ParentNode:
+    # Remove leading "#. " from each line
+    ol_lines = md.split("\n")
+    li_nodes = []
+    for line in ol_lines:
+        ol_match = search(MARKDOWN_OL_RE, line)
+        if ol_match:
+            li_text = ol_match.group(2).strip()
+            text_nodes = text_to_textnodes(li_text)
+            html_children = [text_node_to_html_node(tn) for tn in text_nodes]
+            li_nodes.append(ParentNode('li', html_children))
+    return ParentNode('ol', li_nodes)
+
+
+def code_block_to_parent_node(md:str) -> ParentNode:
+    code_content = md.split("\n")[1:-1]  # Remove the starting and ending ``` lines
+    code_node = TextNode("\n".join(code_content)+"\n", TextType.CODE)
+    html_children = [text_node_to_html_node(code_node)]
+    return ParentNode('pre', html_children)
+
+
+def markdown_to_html_node(markdown:str) -> ParentNode:
+    text_blocks = markdown_to_blocks(markdown)
+    html_nodes = []
+    for block in text_blocks:
+        block_type = block_to_block_type(block)
+        match block_type:
+            case BlockType.heading:
+                html_nodes.append(heading_block_to_parent_node(block))
+            case BlockType.code:
+                html_nodes.append(code_block_to_parent_node(block))
+            case BlockType.quote:
+                html_nodes.append(quote_block_to_parent_node(block))
+            case BlockType.unordered_list:
+                html_nodes.append(unordered_list_block_to_parent_node(block))
+            case BlockType.ordered_list:
+                html_nodes.append(ordered_list_block_to_parent_node(block))
+            case BlockType.paragraph:
+                html_nodes.append(paragraph_block_to_parent_node(block))
+    return ParentNode("div", html_nodes)
+
+
 def main():
-    input_string = """# This is a heading
-
-This is a paragraph of text. It has some **bold** and _italic_ words inside of it.
-
-```Code Block
-Mode code```
-
-- This is the first list item in a list block
-- This is a list item
-- This is another list item
+    md = """
+```
+This is text that _should_ remain
+the **same** even with inline stuff
+```
 """
-    blocks = markdown_to_blocks(input_string)
-    print(blocks)
-    for block in blocks:
-        print(f"{block}\n\tis a(n) {block_to_block_type(block)}")
+    print(f"md: {md}")
+    node = markdown_to_html_node(md)
+    html = node.to_html()
+    print(f"html: {html}")
+    print(f"len html: {len(html)}")
 
 if __name__ == "__main__":
     main()

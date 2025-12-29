@@ -1,7 +1,7 @@
 from textnode import TextNode, TextType
 
 class HTMLNode:
-    def __init__(self, tag:str|None=None, value:str|None=None, children:list[HTMLNode]|None=None, props:dict|None=None):
+    def __init__(self, tag:str|None=None, value:str|None=None, children:list|None=None, props:dict|None=None):
         self.tag = tag
         self.value = value
         self.children = children if children is not None else []
@@ -31,7 +31,7 @@ class LeafNode(HTMLNode):
     
 
 class ParentNode(HTMLNode):
-    def __init__(self, tag: str, children: list[HTMLNode], props: dict = None):
+    def __init__(self, tag: str, children: list, props: dict = None):
         super().__init__(tag, children=children, props=props)
 
     def to_html(self) -> str:
@@ -42,8 +42,9 @@ class ParentNode(HTMLNode):
         props_html = self.props_to_html()
         children_html = "".join(child.to_html() for child in self.children)
         return f'<{self.tag}{" " + props_html if props_html else ""}>{children_html}</{self.tag}>'
+    
 
-def text_node_to_html_node(text_node: TextNode) -> HTMLNode:
+def text_node_to_html_node(text_node: TextNode) -> LeafNode:
     match text_node.text_type:
         case TextType.TEXT:
             return LeafNode(None, text_node.text)
