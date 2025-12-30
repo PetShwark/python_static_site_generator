@@ -14,7 +14,10 @@ class HTMLNode:
         return " ".join(f'{key}="{value}"' for key, value in self.props.items())
     
     def __repr__(self):
-        return f'<{self.tag} {self.props_to_html()}>{self.value}{"".join(str(child) for child in self.children)}</{self.tag}>'  
+        if self.tag is None:
+            return self.value if self.value is not None else ""
+        props_html = self.props_to_html()
+        return f'<{self.tag}{" " + props_html if props_html else ""}>value="{self.value if self.value is not None else ""}"{"".join(str(child) for child in self.children)}</{self.tag}>'  
     
 
 class LeafNode(HTMLNode):
@@ -26,6 +29,9 @@ class LeafNode(HTMLNode):
             raise ValueError("Value cannot be empty for LeafNode")
         if not self.tag:
             return self.value
+        if self.tag == "img":
+            props_html = self.props_to_html()
+            return f'<{self.tag}{" " + props_html if props_html else ""} />'
         props_html = self.props_to_html()
         return f'<{self.tag}{" " + props_html if props_html else ""}>{self.value}</{self.tag}>'
     
@@ -57,6 +63,6 @@ def text_node_to_html_node(text_node: TextNode) -> LeafNode:
         case TextType.LINK:
             return LeafNode("a", text_node.text, props={"href": text_node.url})
         case TextType.IMAGE:
-            return LeafNode("img", None, props={"src": text_node.url, "alt": text_node.text})
+            return LeafNode("img", text_node.text, props={"src": text_node.url, "alt": text_node.text})
         case _:
             raise ValueError(f"Unsupported TextType: {text_node.text_type}")

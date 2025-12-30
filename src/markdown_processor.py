@@ -1,3 +1,4 @@
+import os
 from re import findall, search, MULTILINE, DOTALL
 from enum import Enum
 from textnode import TextNode, TextType
@@ -172,14 +173,12 @@ def block_to_block_type(md:str) -> BlockType:
     else: return BlockType.paragraph
 
 
-def heading_block_to_parent_node(md:str) -> ParentNode:
+def heading_block_to_leaf_node(md:str) -> LeafNode:
     heading_match = search(MARKDOWN_HEADING_RE, md)
     if heading_match: # should always be true here because of block type check
         heading_level = len(heading_match.group(1)) # (#{1,6}) in regex
         heading_text = heading_match.group(2).strip() # (.*) in regex
-        text_nodes = text_to_textnodes(heading_text)
-        html_children = [text_node_to_html_node(tn) for tn in text_nodes]
-        return ParentNode(f'h{heading_level}', html_children)
+        return LeafNode(f'h{heading_level}', heading_text)
     else:
         raise Exception("Invalid heading block")
     
@@ -188,6 +187,7 @@ def paragraph_block_to_parent_node(md:str) -> ParentNode:
     md = md.replace("\n", " ")
     text_nodes = text_to_textnodes(md)
     html_children = [text_node_to_html_node(tn) for tn in text_nodes]
+    print(f"Paragraph HTML children: {html_children}")
     return ParentNode('p', html_children)
 
 
@@ -247,7 +247,7 @@ def markdown_to_html_node(markdown:str) -> ParentNode:
         block_type = block_to_block_type(block)
         match block_type:
             case BlockType.heading:
-                html_nodes.append(heading_block_to_parent_node(block))
+                html_nodes.append(heading_block_to_leaf_node(block))
             case BlockType.code:
                 html_nodes.append(code_block_to_parent_node(block))
             case BlockType.quote:
@@ -258,7 +258,51 @@ def markdown_to_html_node(markdown:str) -> ParentNode:
                 html_nodes.append(ordered_list_block_to_parent_node(block))
             case BlockType.paragraph:
                 html_nodes.append(paragraph_block_to_parent_node(block))
+    print(f"Nodes:\n{html_nodes}")
     return ParentNode("div", html_nodes)
+
+
+def extract_title(markdown:str) -> str:
+    text_blocks = markdown_to_blocks(markdown)
+    for block in text_blocks:
+        if md_is_heading(block):
+            heading_match = search(MARKDOWN_HEADING_RE, block)
+            if heading_match and len(heading_match.group(1)) == 1:  # Only consider level 1 headings as title
+                return heading_match.group(2).strip()
+    raise Exception("No level 1 heading found for title")
+
+
+def generate_page(from_path: str, template_path: str, dest_path: str):
+    """
+    Generate a full HTML page from a markdown file and a template.
+    
+    :param from_path: Markdown file path
+    :type from_path: str
+    :param template_path: Template file path
+    :type template_path: str
+    :param dest_path: Destination HTML file path
+    :type dest_path: str
+    """
+    print(f"Generating page from markdown file, {from_path}, using template, {template_path}, to {dest_path}")
+    with open(from_path, 'r', encoding='utf-8') as f:
+        markdown_content = f.read()
+
+    title = extract_title(markdown_content)
+
+    html_node = markdown_to_html_node(markdown_content)
+    html_content = html_node.to_html()
+
+    with open(template_path, 'r', encoding='utf-8') as f:
+        template_content = f.read()
+    
+    full_html = template_content.replace("{{ Content }}", html_content).replace("{{ Title }}", title)
+
+    # Create destination directory if it doesn't exist
+    dest_dir = os.path.dirname(dest_path)
+    if not os.path.exists(dest_dir):
+        os.makedirs(dest_dir)
+    with open(dest_path, 'w', encoding='utf-8') as f:
+        f.write(full_html)
 
 
 def main():

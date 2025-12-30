@@ -1,30 +1,27 @@
-import os
-import shutil
 import logging
+import os
 logging.basicConfig(level=logging.INFO)
-
-def copy_folder(src: str, dest: str) -> None:
-    if not os.path.exists(dest):
-        os.makedirs(dest)
-    else:
-        logging.info(f"Destination folder {dest} already exists. Erasing contents.")
-        for item in os.listdir(dest):
-            item_path = os.path.join(dest, item)
-            if os.path.isdir(item_path):
-                shutil.rmtree(item_path)
-            else:
-                os.remove(item_path)
-    for item in os.listdir(src):
-        s = os.path.join(src, item)
-        d = os.path.join(dest, item)
-        if os.path.isdir(s):
-            copy_folder(s, d)
-        else:
-            logging.info(f"Copying {s} to {d}")
-            shutil.copy(s, d)
+from copy_folder import copy_folder
+from markdown_processor import markdown_to_html_node, generate_page
 
 def main():
-    copy_folder("static", "public")
+    # import index markdown file and convert to HTMLNode
+    # index_md_path = os.path.join("content", "index.md")
+    # with open(index_md_path, "r", encoding="utf-8") as f:
+    #     index_md = f.read()
+    # logging.info("Converting markdown to HTMLNode...")
+    # index_html_node = markdown_to_html_node(index_md)
+    # logging.info("Conversion complete.")
+    # logging.info("Generated HTML:")
+    # html = index_html_node.to_html()
+    # print(html)
+
+    # copy_folder("static", "public") # Copy static assets, clear destination first
+    generate_page(
+        from_path=os.path.join("content", "index.md"),
+        template_path="template.html",
+        dest_path=os.path.join("public", "index.html"),
+    )
 
 if __name__ == "__main__":
     main()

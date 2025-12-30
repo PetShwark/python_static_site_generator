@@ -1,6 +1,6 @@
 import unittest
 
-from markdown_processor import markdown_to_blocks, markdown_to_html_node, BlockType, block_to_block_type
+from markdown_processor import markdown_to_blocks, markdown_to_html_node, BlockType, block_to_block_type, extract_title
 
 
 class TestMarkdownToBlocks(unittest.TestCase):
@@ -218,3 +218,31 @@ the **same** even with inline stuff
             html,
             "<div><blockquote>This is a quote.\n- Mark Twain</blockquote></div>",
         )
+
+
+class TestExtractTitle(unittest.TestCase):
+    def test_extract_title(self):
+        md = """# This is the Title that should be extracted
+
+This is some paragraph text."""
+        title = extract_title(md)
+        self.assertEqual(title, "This is the Title that should be extracted")
+
+    def test_extract_title2(self):
+        md = """This is some paragraph text.
+
+# This is the Title that should be extracted"""
+        title = extract_title(md)
+        self.assertEqual(title, "This is the Title that should be extracted")
+
+    def test_no_title(self):
+        md = """This is some paragraph text."""
+        with self.assertRaises(Exception):
+            extract_title(md)
+
+    def test_no_title2(self):
+        md = """This is some paragraph text.
+        
+### This is a level 3 heading"""
+        with self.assertRaises(Exception):
+            extract_title(md)
