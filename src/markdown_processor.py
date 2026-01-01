@@ -16,21 +16,34 @@ class BlockType(Enum):
 
 
 def split_nodes_delimiter(old_nodes, delimiter, text_type) -> list[TextNode]:
+    """
+    Split TextNodes in old_nodes by delimiter and assign text_type to the delimited parts.
+    
+    :param old_nodes: Nodes to split
+    :type old_nodes: list[TextNode]
+    :param delimiter: Delimiter string
+    :type delimiter: str
+    :param text_type: TextType to assign to delimited parts
+    :type text_type: TextType
+    :return: List of TextNodes with splits applied
+    :rtype: list[TextNode]
+    """
     new_nodes: list[TextNode] = []
     for old_node in old_nodes:
         if old_node.text_type != TextType.TEXT:
             new_nodes.append(old_node)
         else:
+            # There must be an even number of delimiters to split properly
             nodes_to_add: list[TextNode] = []
-            delimited_parts = old_node.text.split(delimiter, 2)
-            if len(delimited_parts) == 2: # only one delimiter - bad syntax
-                raise Exception(f"Bad Markdown syntax - only one delimiter ({delimiter}) found.")
-            if len(delimited_parts) == 1: # no delimiter - treat as text
-                nodes_to_add.append(old_node)
-            else: # must be split into 3 
-                nodes_to_add.append(TextNode(delimited_parts[0], TextType.TEXT))
-                nodes_to_add.append(TextNode(delimited_parts[1], text_type))
-                nodes_to_add.append(TextNode(delimited_parts[2], TextType.TEXT))
+            delimited_parts = old_node.text.split(delimiter)
+            if len(delimited_parts) % 2 == 0:
+                raise Exception(f"Unmatched delimiter '{delimiter}' in text: {old_node.text}")
+            for idx, part in enumerate(delimited_parts):
+                if part:  # Only add non-empty parts
+                    if idx % 2 == 0:
+                        nodes_to_add.append(TextNode(part, TextType.TEXT))
+                    else:
+                        nodes_to_add.append(TextNode(part, text_type))
             new_nodes.extend(nodes_to_add)
     return new_nodes
 
@@ -173,12 +186,14 @@ def block_to_block_type(md:str) -> BlockType:
     else: return BlockType.paragraph
 
 
-def heading_block_to_leaf_node(md:str) -> LeafNode:
+def heading_block_to_parent_node(md:str) -> ParentNode:
     heading_match = search(MARKDOWN_HEADING_RE, md)
     if heading_match: # should always be true here because of block type check
         heading_level = len(heading_match.group(1)) # (#{1,6}) in regex
         heading_text = heading_match.group(2).strip() # (.*) in regex
-        return LeafNode(f'h{heading_level}', heading_text)
+        text_nodes = text_to_textnodes(heading_text)
+        html_children = [text_node_to_html_node(tn) for tn in text_nodes if tn.text.strip()]
+        return ParentNode(f'h{heading_level}', html_children)
     else:
         raise Exception("Invalid heading block")
     
@@ -186,8 +201,7 @@ def heading_block_to_leaf_node(md:str) -> LeafNode:
 def paragraph_block_to_parent_node(md:str) -> ParentNode:
     md = md.replace("\n", " ")
     text_nodes = text_to_textnodes(md)
-    html_children = [text_node_to_html_node(tn) for tn in text_nodes]
-    print(f"Paragraph HTML children: {html_children}")
+    html_children = [text_node_to_html_node(tn) for tn in text_nodes if tn.text.strip()]
     return ParentNode('p', html_children)
 
 
@@ -201,7 +215,7 @@ def quote_block_to_parent_node(md:str) -> ParentNode:
             cleaned_lines.append(quote_match.group(2).strip())
     quote_text = "\n".join(cleaned_lines)
     text_nodes = text_to_textnodes(quote_text)
-    html_children = [text_node_to_html_node(tn) for tn in text_nodes]
+    html_children = [text_node_to_html_node(tn) for tn in text_nodes if tn.text.strip()]
     return ParentNode('blockquote', html_children)
 
 
@@ -214,7 +228,7 @@ def unordered_list_block_to_parent_node(md:str) -> ParentNode:
         if ul_match:
             li_text = ul_match.group(2).strip()
             text_nodes = text_to_textnodes(li_text)
-            html_children = [text_node_to_html_node(tn) for tn in text_nodes]
+            html_children = [text_node_to_html_node(tn) for tn in text_nodes if tn.text.strip()]
             li_nodes.append(ParentNode('li', html_children))
     return ParentNode('ul', li_nodes)
 
@@ -228,7 +242,7 @@ def ordered_list_block_to_parent_node(md:str) -> ParentNode:
         if ol_match:
             li_text = ol_match.group(2).strip()
             text_nodes = text_to_textnodes(li_text)
-            html_children = [text_node_to_html_node(tn) for tn in text_nodes]
+            html_children = [text_node_to_html_node(tn) for tn in text_nodes if tn.text.strip()]
             li_nodes.append(ParentNode('li', html_children))
     return ParentNode('ol', li_nodes)
 
@@ -247,7 +261,7 @@ def markdown_to_html_node(markdown:str) -> ParentNode:
         block_type = block_to_block_type(block)
         match block_type:
             case BlockType.heading:
-                html_nodes.append(heading_block_to_leaf_node(block))
+                html_nodes.append(heading_block_to_parent_node(block))
             case BlockType.code:
                 html_nodes.append(code_block_to_parent_node(block))
             case BlockType.quote:
@@ -258,7 +272,6 @@ def markdown_to_html_node(markdown:str) -> ParentNode:
                 html_nodes.append(ordered_list_block_to_parent_node(block))
             case BlockType.paragraph:
                 html_nodes.append(paragraph_block_to_parent_node(block))
-    print(f"Nodes:\n{html_nodes}")
     return ParentNode("div", html_nodes)
 
 
@@ -303,6 +316,26 @@ def generate_page(from_path: str, template_path: str, dest_path: str):
         os.makedirs(dest_dir)
     with open(dest_path, 'w', encoding='utf-8') as f:
         f.write(full_html)
+
+
+def generate_pages_recursively(from_dir: str, template_path: str, dest_dir: str):
+    """
+    Recursively generate HTML pages from markdown files in a directory using a template.
+    
+    :param from_dir: Source directory containing markdown files
+    :type from_dir: str
+    :param template_path: Template file path
+    :type template_path: str
+    :param dest_dir: Destination directory for generated HTML files
+    :type dest_dir: str
+    """
+    for root, dirs, files in os.walk(from_dir):
+        for file in files:
+            if file.endswith('.md'):
+                from_path = os.path.join(root, file)
+                relative_path = os.path.relpath(from_path, from_dir)
+                dest_path = os.path.join(dest_dir, os.path.splitext(relative_path)[0] + '.html')
+                generate_page(from_path, template_path, dest_path)
 
 
 def main():

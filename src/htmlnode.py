@@ -26,7 +26,7 @@ class LeafNode(HTMLNode):
 
     def to_html(self) -> str:
         if not self.value:
-            raise ValueError("Value cannot be empty for LeafNode")
+            raise ValueError(f"Value cannot be empty for LeafNode: tag={self.tag}, value={self.value}, props={self.props}")
         if not self.tag:
             return self.value
         if self.tag == "img":
@@ -42,9 +42,9 @@ class ParentNode(HTMLNode):
 
     def to_html(self) -> str:
         if not self.tag:
-            raise ValueError("Tag cannot be empty for ParentNode")
+            raise ValueError(f"Tag cannot be empty for ParentNode, tag={self.tag}, children={self.children}, props={self.props}")
         if not self.children:
-            raise ValueError("Children cannot be empty for ParentNode")
+            raise ValueError(f"Children cannot be empty for ParentNode, tag={self.tag}, children={self.children}, props={self.props}")
         props_html = self.props_to_html()
         children_html = "".join(child.to_html() for child in self.children)
         return f'<{self.tag}{" " + props_html if props_html else ""}>{children_html}</{self.tag}>'
