@@ -285,10 +285,12 @@ def extract_title(markdown:str) -> str:
     raise Exception("No level 1 heading found for title")
 
 
-def generate_page(from_path: str, template_path: str, dest_path: str):
+def generate_page(basepath: str, from_path: str, template_path: str, dest_path: str):
     """
     Generate a full HTML page from a markdown file and a template.
-    
+
+    :param basepath: Base path for the site
+    :type basepath: str
     :param from_path: Markdown file path
     :type from_path: str
     :param template_path: Template file path
@@ -307,8 +309,8 @@ def generate_page(from_path: str, template_path: str, dest_path: str):
 
     with open(template_path, 'r', encoding='utf-8') as f:
         template_content = f.read()
-    
-    full_html = template_content.replace("{{ Content }}", html_content).replace("{{ Title }}", title)
+
+    full_html = template_content.replace("{{ Content }}", html_content).replace("{{ Title }}", title).replace("href=\"/",f"href=\"{basepath}").replace("src=\"/",f"src=\"{basepath}")
 
     # Create destination directory if it doesn't exist
     dest_dir = os.path.dirname(dest_path)
@@ -318,10 +320,12 @@ def generate_page(from_path: str, template_path: str, dest_path: str):
         f.write(full_html)
 
 
-def generate_pages_recursively(from_dir: str, template_path: str, dest_dir: str):
+def generate_pages_recursively(basepath: str, from_dir: str, template_path: str, dest_dir: str):
     """
     Recursively generate HTML pages from markdown files in a directory using a template.
     
+    :param basepath: Base path for the site
+    :type basepath: str
     :param from_dir: Source directory containing markdown files
     :type from_dir: str
     :param template_path: Template file path
@@ -335,7 +339,7 @@ def generate_pages_recursively(from_dir: str, template_path: str, dest_dir: str)
                 from_path = os.path.join(root, file)
                 relative_path = os.path.relpath(from_path, from_dir)
                 dest_path = os.path.join(dest_dir, os.path.splitext(relative_path)[0] + '.html')
-                generate_page(from_path, template_path, dest_path)
+                generate_page(basepath,from_path, template_path, dest_path)
 
 
 def main():
